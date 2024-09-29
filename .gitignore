@@ -1,0 +1,6 @@
+.*_cache/
+/.cache/
+/.venv/
+/__pycache__/
+/public/
+cache.pickle

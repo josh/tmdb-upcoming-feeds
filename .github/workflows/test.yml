@@ -1,0 +1,28 @@
+name: Test
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system --requirement requirements.txt
+
+      - name: Test
+        run: |
+          python3 tmdb_upcoming.py \
+            --people-file test_people.csv
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
