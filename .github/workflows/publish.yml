@@ -46,7 +46,7 @@ jobs:
             --cache-file cache.pickle \
             --companies-file companies.csv \
             --people-file people.csv \
-            --output-file public/upcoming-movies.json
+            --output-file public/upcoming.json
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
 
