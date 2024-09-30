@@ -41,6 +41,7 @@ jobs:
 
       - name: Generate feeds
         run: |
+          mkdir -p public/
           python tmdb_upcoming.py \
             --cache-file cache.pickle \
             --companies-file companies.csv \
