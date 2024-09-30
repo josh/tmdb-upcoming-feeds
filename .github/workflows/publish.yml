@@ -29,7 +29,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install --system --constraint requirements.txt '.'
+          uv pip install --system --requirement requirements.txt
 
       - name: Load cache
         uses: actions/cache@v4
