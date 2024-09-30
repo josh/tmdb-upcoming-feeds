@@ -114,6 +114,8 @@ def main(
         }
         feed["items"].append(item)
 
+    feed["items"].sort(key=lambda item: item["id"])
+
     if isinstance(cache, lru_cache.PersistentLRUCache):
         cache.close()
 
