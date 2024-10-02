@@ -50,6 +50,11 @@ jobs:
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
 
+      - name: Show changes
+        run: |
+          diff <(curl --silent https://josh.github.io/tmdb-upcoming-feeds/upcoming.json) upcoming.json
+        working-directory: public/
+
       - name: Fetch deployed checksum
         id: deployed-checksum
         run: |
