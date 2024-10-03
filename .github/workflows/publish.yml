@@ -52,7 +52,7 @@ jobs:
 
       - name: Show changes
         run: |
-          diff <(curl --silent https://josh.github.io/tmdb-upcoming-feeds/upcoming.json) upcoming.json
+          diff <(curl --silent https://josh.github.io/tmdb-upcoming-feeds/upcoming.json) upcoming.json || true
         working-directory: public/
 
       - name: Fetch deployed checksum
