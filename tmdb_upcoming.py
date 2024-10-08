@@ -218,20 +218,16 @@ def _self_character(character: str) -> bool:
 
 
 def _movie_content_text(media: "_Movie", people_ids: set[int]) -> str:
+    director_names = set(
+        crew["name"] for crew in media["credits"]["crew"] if crew["job"] == "Director"
+    )
+    people_names = _relevant_people_names(media["credits"], people_ids) - director_names
+
     content = f"\"{media['title']}\""
-
-    director_name: str = "TBA"
-    for crew in media["credits"]["crew"]:
-        if crew["job"] == "Director":
-            director_name = crew["name"]
-            break
-    content += f" directed by {director_name}"
-
-    people_names = _relevant_people_names(media["credits"], people_ids)
-    if director_name in people_names:
-        people_names.remove(director_name)
+    if director_names:
+        content += f" directed by {_names_to_sentence(director_names)}"
     if people_names:
-        content += f" along with {', '.join(people_names)}"
+        content += f" along with {_names_to_sentence(people_names)}"
     content += "."
 
     release_date = _parse_date(media["release_date"])
@@ -239,6 +235,16 @@ def _movie_content_text(media: "_Movie", people_ids: set[int]) -> str:
         content += f" Coming {release_date.strftime('%B %Y')}."
 
     return content
+
+
+def _names_to_sentence(names: Iterable[str]) -> str:
+    ns = sorted(names)
+    if len(ns) == 1:
+        return ns[0]
+    elif len(ns) == 2:
+        return f"{ns[0]} and {ns[1]}"
+    else:
+        return f"{', '.join(ns[:-1])}, and {ns[-1]}"
 
 
 def _tv_content_text(media: "_TVShow", people_ids: set[int]) -> str:
@@ -256,7 +262,7 @@ def _tv_content_text(media: "_TVShow", people_ids: set[int]) -> str:
     return content
 
 
-def _relevant_people_names(credits: "_Credits", people_ids: set[int]) -> list[str]:
+def _relevant_people_names(credits: "_Credits", people_ids: set[int]) -> set[str]:
     names: set[str] = set()
     for cast_credit in credits["cast"]:
         if cast_credit["id"] in people_ids:
@@ -264,7 +270,7 @@ def _relevant_people_names(credits: "_Credits", people_ids: set[int]) -> list[st
     for crew_credit in credits["crew"]:
         if crew_credit["id"] in people_ids:
             names.add(crew_credit["name"])
-    return sorted(list(names))
+    return set(names)
 
 
 ## TMDB API
