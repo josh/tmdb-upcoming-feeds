@@ -237,6 +237,21 @@ def _movie_content_text(media: "_Movie", people_ids: set[int]) -> str:
     return content
 
 
+def _tv_content_text(media: "_TVShow", people_ids: set[int]) -> str:
+    content = f"\"{media['name']}\""
+
+    people_names = _relevant_people_names(media["credits"], people_ids)
+    if people_names:
+        content += f" with {_names_to_sentence(people_names)}"
+    content += "."
+
+    release_date = _parse_date(media["first_air_date"])
+    if release_date:
+        content += f" Coming {release_date.strftime('%B %Y')}."
+
+    return content
+
+
 def _names_to_sentence(names: Iterable[str]) -> str:
     ns = sorted(names)
     if len(ns) == 1:
@@ -245,21 +260,6 @@ def _names_to_sentence(names: Iterable[str]) -> str:
         return f"{ns[0]} and {ns[1]}"
     else:
         return f"{', '.join(ns[:-1])}, and {ns[-1]}"
-
-
-def _tv_content_text(media: "_TVShow", people_ids: set[int]) -> str:
-    content = f"\"{media['name']}\""
-
-    people_names = _relevant_people_names(media["credits"], people_ids)
-    if people_names:
-        content += f" with {', '.join(people_names)}"
-    content += "."
-
-    release_date = _parse_date(media["first_air_date"])
-    if release_date:
-        content += f" Coming {release_date.strftime('%B %Y')}."
-
-    return content
 
 
 def _relevant_people_names(credits: "_Credits", people_ids: set[int]) -> set[str]:
