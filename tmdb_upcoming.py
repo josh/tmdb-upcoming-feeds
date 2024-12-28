@@ -80,9 +80,6 @@ def main(
         if not in_production:
             logger.debug("Skip '%s', not in production", title)
             continue
-        first_seen_in_production: datetime = cache.get_or_load(
-            f"first_seen_in_production:{imdb_id}", _now
-        )
 
         imdb_url = f"https://www.imdb.com/title/{imdb_id}/"
 
@@ -92,25 +89,25 @@ def main(
                 release_estimate = release_date.strftime("%B %Y")
         status = media["status"]
 
-        details_updated: datetime = cache.get_or_load(
-            f"details_updated:{imdb_id}:{title}:{status}:{release_estimate}", _now
-        )
-
         content_text: str = ""
         if media["media_type"] == "movie":
             content_text = _movie_content_text(media, people_ids=people_ids)
         elif media["media_type"] == "tv":
             content_text = _tv_content_text(media, people_ids=people_ids)
 
-        item_id: str = cache.get_or_load(f"item_id:{imdb_id}", lambda: str(uuid4()))
+        # Generate a unique key for any major changes to the item
+        item_key = f"{imdb_id}:{title}:{status}:{release_estimate}"
+        item_id: str = cache.get_or_load(f"item_id:{item_key}", lambda: str(uuid4()))
+        content_updated: datetime = cache.get_or_load(
+            f"content_updated:{item_key}", _now
+        )
 
         item: Item = {
             "id": item_id,
             "url": imdb_url,
             "title": title,
             "content_text": content_text,
-            "date_published": first_seen_in_production.isoformat(),
-            "date_modified": details_updated.isoformat(),
+            "date_published": content_updated.isoformat(),
         }
         feed["items"].append(item)
 
@@ -135,7 +132,6 @@ class Item(TypedDict):
     title: str
     content_text: str
     date_published: str
-    date_modified: str
 
 
 def _read_ids(file: io.TextIOWrapper | None) -> set[int]:
