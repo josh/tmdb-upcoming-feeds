@@ -1,5 +1,6 @@
 [project]
 name = "tmdb-upcoming-feeds"
+version = "0.0.0"
 description = "JSON feeds for TK"
 readme = "README.md"
 authors = [{ name = "Joshua Peek" }]
