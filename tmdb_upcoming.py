@@ -219,7 +219,7 @@ def _movie_content_text(media: "_Movie", people_ids: set[int]) -> str:
     )
     people_names = _relevant_people_names(media["credits"], people_ids) - director_names
 
-    content = f"\"{media['title']}\""
+    content = f'"{media["title"]}"'
     if director_names:
         content += f" directed by {_names_to_sentence(director_names)}"
     if people_names:
@@ -234,7 +234,7 @@ def _movie_content_text(media: "_Movie", people_ids: set[int]) -> str:
 
 
 def _tv_content_text(media: "_TVShow", people_ids: set[int]) -> str:
-    content = f"\"{media['name']}\""
+    content = f'"{media["name"]}"'
 
     people_names = _relevant_people_names(media["credits"], people_ids)
     if people_names:
