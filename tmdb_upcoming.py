@@ -386,7 +386,7 @@ def _media_object(
     media_type: Literal["movie", "tv"],
     media_id: int,
     api_key: str,
-) -> "_AnyMedia" | None:
+) -> Union["_AnyMedia", None]:
     try:
         url = f"https://api.themoviedb.org/3/{media_type}/{media_id}?append_to_response=credits,external_ids"
         obj = _get_json(url, api_key=api_key)
