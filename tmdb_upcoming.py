@@ -61,6 +61,9 @@ def main(
 
     for media_type, media_id in _unique(media_ids):
         media = _media_object(media_type=media_type, media_id=media_id, api_key=api_key)
+        if not media:
+            logger.error("Skip '%s/%s' request error", media_type, media_id)
+            continue
 
         title = ""
         if media["media_type"] == "movie":
@@ -383,16 +386,24 @@ def _media_object(
     media_type: Literal["movie", "tv"],
     media_id: int,
     api_key: str,
-) -> "_AnyMedia":
-    url = f"https://api.themoviedb.org/3/{media_type}/{media_id}?append_to_response=credits,external_ids"
-    obj = _get_json(url, api_key=api_key)
-    obj["media_type"] = media_type
-    return cast(_AnyMedia, obj)
+) -> "_AnyMedia" | None:
+    try:
+        url = f"https://api.themoviedb.org/3/{media_type}/{media_id}?append_to_response=credits,external_ids"
+        obj = _get_json(url, api_key=api_key)
+        obj["media_type"] = media_type
+        return cast(_AnyMedia, obj)
+    except Exception as e:
+        logger.error("Error fetching media object: %s", e)
+        return None
 
 
 def _person_credits(person_id: int, api_key: str) -> Iterator["_PersonMediaCredit"]:
-    url = f"https://api.themoviedb.org/3/person/{person_id}/combined_credits"
-    credits = _get_json(url, api_key=api_key)
+    try:
+        url = f"https://api.themoviedb.org/3/person/{person_id}/combined_credits"
+        credits = _get_json(url, api_key=api_key)
+    except Exception as e:
+        logger.error("Error fetching person '%s' credits: %s", person_id, e)
+        return
 
     for credit in credits["cast"]:
         credit["credit_type"] = "cast"
