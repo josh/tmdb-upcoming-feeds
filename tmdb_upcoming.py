@@ -69,7 +69,7 @@ def main(
             title = media["name"]
         assert title
 
-        imdb_id = media["external_ids"]["imdb_id"]
+        imdb_id = media.get("external_ids", {}).get("imdb_id")
         if not imdb_id:
             logger.debug("Skip '%s' missing IMDb ID", title)
             continue
