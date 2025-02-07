@@ -158,9 +158,9 @@ def _discover_credits(
                 continue
 
             release_date = None
-            if credit["media_type"] == "movie":
+            if credit["media_type"] == "movie" and credit.get("release_date"):
                 release_date = _parse_date(credit["release_date"])
-            elif credit["media_type"] == "tv":
+            elif credit["media_type"] == "tv" and credit.get("first_air_date"):
                 release_date = _parse_date(credit["first_air_date"])
             if release_date and release_date <= date.today():
                 logger.debug("Skip already released: %i", credit["id"])
