@@ -153,7 +153,7 @@ def _discover_credits(
 ) -> Iterator[tuple[Literal["movie", "tv"], int]]:
     for person_id in people_ids:
         for credit in _person_credits(person_id, api_key=api_key):
-            if credit["media_type"] == "movie" and credit["video"] is True:
+            if credit["media_type"] == "movie" and credit.get("video") is True:
                 logger.debug("Skip video: %i", credit["id"])
                 continue
 
