@@ -8,7 +8,7 @@ mypy==1.16.0
     # via tmdb-upcoming-feeds (pyproject.toml)
 mypy-extensions==1.1.0
     # via mypy
-ruff==0.11.9
+ruff==0.12.0
     # via tmdb-upcoming-feeds (pyproject.toml)
 typing-extensions==4.14.0
     # via mypy
