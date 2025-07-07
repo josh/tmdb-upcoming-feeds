@@ -20,16 +20,10 @@ jobs:
       - name: Checkout main branch
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: "pyproject.toml"
-
       - uses: astral-sh/setup-uv@v6
 
       - name: Install dependencies
-        run: |
-          uv pip install --system --requirement requirements.txt
+        run: uv sync
 
       - name: Load cache
         uses: actions/cache@v4
@@ -42,7 +36,7 @@ jobs:
       - name: Generate feeds
         run: |
           mkdir -p public/
-          python tmdb_upcoming.py \
+          uv run tmdb-upcoming \
             --cache-file cache.pickle \
             --companies-file companies.csv \
             --people-file people.csv \

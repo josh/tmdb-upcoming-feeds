@@ -1,6 +1,7 @@
 .*_cache/
+/__pycache__/
 /.cache/
 /.venv/
-/__pycache__/
+/*.egg-info/
 /public/
 cache.pickle
