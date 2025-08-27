@@ -52,7 +52,7 @@ jobs:
       - name: Fetch deployed checksum
         id: deployed-checksum
         run: |
-          curl --silent https://josh.github.io/tmdb-upcoming-feeds/.checksum | tee "$RUNNER_TEMP/checksum"
+          curl --silent https://josh.github.io/tmdb-upcoming-feeds/checksum | tee "$RUNNER_TEMP/checksum"
           (echo -n "checksum=" ; head -n1 "$RUNNER_TEMP/checksum") >>"$GITHUB_OUTPUT"
 
       - name: Compute checksum
@@ -60,7 +60,7 @@ jobs:
         run: |
           sha256sum ./* | sort | sha256sum | awk '{print $1}' | tee "$RUNNER_TEMP/checksum"
           (echo -n "checksum=" ; cat "$RUNNER_TEMP/checksum") >>"$GITHUB_OUTPUT"
-          mv "$RUNNER_TEMP/checksum" .checksum
+          mv "$RUNNER_TEMP/checksum" checksum
         working-directory: public/
 
       - name: Upload artifact
