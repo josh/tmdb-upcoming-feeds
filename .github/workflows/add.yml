@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   add:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     concurrency: git-push-data
 
     steps:
