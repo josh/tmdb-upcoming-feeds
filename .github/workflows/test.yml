@@ -6,6 +6,13 @@ jobs:
   test:
     runs-on: ubuntu-slim
 
+    strategy:
+      matrix:
+        uv_resolution: ["highest", "lowest-direct"]
+
+    env:
+      UV_RESOLUTION: ${{ matrix.uv_resolution }}
+
     steps:
       - uses: actions/checkout@v6
 
@@ -16,7 +23,6 @@ jobs:
 
       - name: Test
         run: |
-          uv run tmdb-upcoming \
-            --people-file test_people.csv
+          uv run tmdb-upcoming --people-file test_people.csv
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
