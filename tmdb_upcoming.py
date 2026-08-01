@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 import json
 import logging
@@ -126,7 +128,7 @@ class Feed(TypedDict):
     version: Literal["https://jsonfeed.org/version/1.1"]
     title: str
     icon: str
-    items: list["Item"]
+    items: list[Item]
 
 
 class Item(TypedDict):
@@ -216,7 +218,7 @@ def _self_character(character: str) -> bool:
     )
 
 
-def _movie_content_text(media: "_Movie", people_ids: set[int]) -> str:
+def _movie_content_text(media: _Movie, people_ids: set[int]) -> str:
     director_names = set(
         crew["name"] for crew in media["credits"]["crew"] if crew["job"] == "Director"
     )
@@ -236,7 +238,7 @@ def _movie_content_text(media: "_Movie", people_ids: set[int]) -> str:
     return content
 
 
-def _tv_content_text(media: "_TVShow", people_ids: set[int]) -> str:
+def _tv_content_text(media: _TVShow, people_ids: set[int]) -> str:
     content = f'"{media["name"]}"'
 
     people_names = _relevant_people_names(media["credits"], people_ids)
@@ -261,7 +263,7 @@ def _names_to_sentence(names: Iterable[str]) -> str:
         return f"{', '.join(ns[:-1])}, and {ns[-1]}"
 
 
-def _relevant_people_names(credits: "_Credits", people_ids: set[int]) -> set[str]:
+def _relevant_people_names(credits: _Credits, people_ids: set[int]) -> set[str]:
     names: set[str] = set()
     for cast_credit in credits["cast"]:
         if cast_credit["id"] in people_ids:
@@ -290,8 +292,8 @@ class _Movie(TypedDict):
         "Rumored",
     ]
     release_date: str
-    credits: "_Credits"
-    external_ids: "_ExternalIDs"
+    credits: _Credits
+    external_ids: _ExternalIDs
 
 
 class _TVShow(TypedDict):
@@ -308,8 +310,8 @@ class _TVShow(TypedDict):
         "Planned",
         "Returning Series",
     ]
-    credits: "_Credits"
-    external_ids: "_ExternalIDs"
+    credits: _Credits
+    external_ids: _ExternalIDs
 
 
 class _ExternalIDs(TypedDict):
@@ -317,8 +319,8 @@ class _ExternalIDs(TypedDict):
 
 
 class _Credits(TypedDict):
-    cast: list["_CastCrew"]
-    crew: list["_CrewCredit"]
+    cast: list[_CastCrew]
+    crew: list[_CrewCredit]
 
 
 class _CastCrew(TypedDict):
@@ -386,7 +388,7 @@ def _media_object(
     media_type: Literal["movie", "tv"],
     media_id: int,
     api_key: str,
-) -> Union["_AnyMedia", None]:
+) -> _AnyMedia | None:
     try:
         url = f"https://api.themoviedb.org/3/{media_type}/{media_id}?append_to_response=credits,external_ids"
         obj = _get_json(url, api_key=api_key)
@@ -397,7 +399,7 @@ def _media_object(
         return None
 
 
-def _person_credits(person_id: int, api_key: str) -> Iterator["_PersonMediaCredit"]:
+def _person_credits(person_id: int, api_key: str) -> Iterator[_PersonMediaCredit]:
     try:
         url = f"https://api.themoviedb.org/3/person/{person_id}/combined_credits"
         credits = _get_json(url, api_key=api_key)
