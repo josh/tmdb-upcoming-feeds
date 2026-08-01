@@ -4,7 +4,7 @@ import logging
 import re
 import urllib.request
 from collections.abc import Iterable, Iterator
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal, TypedDict, TypeVar, Union, cast
 from uuid import uuid4
@@ -87,9 +87,10 @@ def main(
         imdb_url = f"https://www.imdb.com/title/{imdb_id}/"
 
         release_estimate = ""
-        if media["media_type"] == "movie":
-            if release_date := _parse_date(media["release_date"]):
-                release_estimate = release_date.strftime("%B %Y")
+        if media["media_type"] == "movie" and (
+            release_date := _parse_date(media["release_date"])
+        ):
+            release_estimate = release_date.strftime("%B %Y")
         status = media["status"]
 
         content_text: str = ""
@@ -140,10 +141,10 @@ class Item(TypedDict):
 def _read_ids(file: io.TextIOWrapper | None) -> set[int]:
     if not file:
         return set()
-    return set(int(line.split("-", 1)[0]) for line in file)
+    return {int(line.split("-", 1)[0]) for line in file}
 
 
-_RELEVANT_DEPARTMENTS = set(["Directing", "Writing"])
+_RELEVANT_DEPARTMENTS = {"Directing", "Writing"}
 
 
 def _discover_credits(
@@ -162,7 +163,7 @@ def _discover_credits(
                 release_date = _parse_date(credit["release_date"])
             elif credit["media_type"] == "tv" and credit.get("first_air_date"):
                 release_date = _parse_date(credit["first_air_date"])
-            if release_date and release_date <= date.today():
+            if release_date and release_date <= _today():
                 logger.debug("Skip already released: %i", credit["id"])
                 continue
 
@@ -200,7 +201,7 @@ def _discover_credits(
             media_type="movie", company_id=company_id, api_key=api_key
         ):
             release_date = _parse_date(movie["release_date"])
-            if release_date and release_date <= date.today():
+            if release_date and release_date <= _today():
                 logger.debug("Skip already released: %i", movie["id"])
                 continue
             yield "movie", movie["id"]
@@ -217,9 +218,9 @@ def _self_character(character: str) -> bool:
 
 
 def _movie_content_text(media: "_Movie", people_ids: set[int]) -> str:
-    director_names = set(
+    director_names = {
         crew["name"] for crew in media["credits"]["crew"] if crew["job"] == "Director"
-    )
+    }
     people_names = _relevant_people_names(media["credits"], people_ids) - director_names
 
     content = f'"{media["title"]}"'
@@ -392,7 +393,8 @@ def _media_object(
         obj = _get_json(url, api_key=api_key)
         obj["media_type"] = media_type
         return cast(_AnyMedia, obj)
-    except Exception as e:
+    # Any fetch failure should skip this item, not abort the whole run.
+    except Exception as e:  # noqa: BLE001
         logger.error("Error fetching media object: %s", e)
         return None
 
@@ -401,7 +403,8 @@ def _person_credits(person_id: int, api_key: str) -> Iterator["_PersonMediaCredi
     try:
         url = f"https://api.themoviedb.org/3/person/{person_id}/combined_credits"
         credits = _get_json(url, api_key=api_key)
-    except Exception as e:
+    # Any fetch failure should skip this person, not abort the whole run.
+    except Exception as e:  # noqa: BLE001
         logger.error("Error fetching person '%s' credits: %s", person_id, e)
         return
 
@@ -419,7 +422,7 @@ def _discover_media_with_company(
     company_id: int,
     api_key: str,
 ) -> Iterator[dict[str, Any]]:  # TODO: define a type for this
-    today: str = date.today().isoformat()
+    today: str = _today().isoformat()
     url = f"https://api.themoviedb.org/3/discover/{media_type}?&release_date.gte={today}&sort_by=primary_release_date.asc&with_companies={company_id}"
     yield from _tmdb_get_paginated_json(url, api_key=api_key)
 
@@ -429,7 +432,7 @@ def _discover_media_with_person(
     person_id: int,
     api_key: str,
 ) -> Iterator[dict[str, Any]]:  # TODO: define a type for this
-    today: str = date.today().isoformat()
+    today: str = _today().isoformat()
     url = f"https://api.themoviedb.org/3/discover/{media_type}?&release_date.gte={today}&sort_by=primary_release_date.asc&with_people={person_id}"
     yield from _tmdb_get_paginated_json(url, api_key=api_key)
 
@@ -482,7 +485,11 @@ def _unique(iterable: Iterable[T]) -> Iterator[T]:
 
 
 def _now() -> datetime:
-    return datetime.now().replace(microsecond=0)
+    return datetime.now(tz=UTC).replace(microsecond=0)
+
+
+def _today() -> date:
+    return datetime.now(tz=UTC).date()
 
 
 def _parse_date(date_str: str | None) -> date | None:
