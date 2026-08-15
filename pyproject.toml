@@ -4,7 +4,7 @@ requires = [ "setuptools" ]
 
 [project]
 name = "tmdb-upcoming-feeds"
-version = "0.1.0"
+version = "0.2.0"
 description = "JSON feeds for upcoming movies and TV shows"
 readme = "README.md"
 license = "MIT"
