@@ -424,7 +424,10 @@ def _discover_media_with_company(
 ) -> Iterator[dict[str, Any]]:  # TODO: define a type for this
     today: str = _today().isoformat()
     url = f"https://api.themoviedb.org/3/discover/{media_type}?&release_date.gte={today}&sort_by=primary_release_date.asc&with_companies={company_id}"
-    yield from _tmdb_get_paginated_json(url, api_key=api_key)
+    try:
+        yield from _tmdb_get_paginated_json(url, api_key=api_key)
+    except Exception as e:  # noqa: BLE001
+        logger.error("Error discovering company '%s' media: %s", company_id, e)
 
 
 def _discover_media_with_person(
