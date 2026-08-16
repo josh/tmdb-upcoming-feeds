@@ -141,7 +141,7 @@ class Item(TypedDict):
 def _read_ids(file: io.TextIOWrapper | None) -> set[int]:
     if not file:
         return set()
-    return {int(line.split("-", 1)[0]) for line in file}
+    return {int(line.split("-", 1)[0]) for line in file if line.strip()}
 
 
 _RELEVANT_DEPARTMENTS = {"Directing", "Writing"}
