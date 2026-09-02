@@ -1,16 +1,17 @@
 import io
 import json
 import logging
+import pickle
 import re
 import urllib.request
-from collections.abc import Iterable, Iterator
+from collections import OrderedDict
+from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal, TypedDict, TypeVar, Union, cast
 from uuid import uuid4
 
 import click
-import lru_cache
 
 logger = logging.getLogger("tmdb-upcoming")
 
@@ -37,12 +38,7 @@ def main(
     log_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=log_level)
 
-    cache_max = 1000
-    cache: lru_cache.LRUCache
-    if cache_file:
-        cache = lru_cache.open(cache_file, max_items=cache_max)
-    else:
-        cache = lru_cache.LRUCache(max_items=cache_max)
+    cache = _Cache(cache_file, max_items=1000)
 
     people_ids = _read_ids(people_file)
     company_ids = _read_ids(companies_file)
@@ -117,8 +113,7 @@ def main(
 
     feed["items"].sort(key=lambda item: item["id"])
 
-    if isinstance(cache, lru_cache.PersistentLRUCache):
-        cache.close()
+    cache.close()
 
     json.dump(feed, output_file, indent=4)
 
@@ -485,6 +480,40 @@ def _unique(iterable: Iterable[T]) -> Iterator[T]:
             continue
         yield e
         seen.add(e)
+
+
+class _Cache:
+    """Memoized values, persisted as a pickle when given a filename.
+
+    Oldest entries are evicted on close until at most max_items remain.
+    """
+
+    _filename: Path | None
+    _max_items: int
+    _data: OrderedDict[str, Any]
+
+    def __init__(self, filename: Path | None, max_items: int) -> None:
+        self._filename = filename
+        self._max_items = max_items
+        self._data = OrderedDict()
+        if filename and filename.exists():
+            self._data.update(pickle.loads(filename.read_bytes()))
+
+    def get_or_load(self, key: str, load_value: Callable[[], T]) -> T:
+        if key in self._data:
+            self._data.move_to_end(key)
+            cached: T = self._data[key]
+            return cached
+        self._data[key] = value = load_value()
+        return value
+
+    def close(self) -> None:
+        if self._filename is None:
+            return
+        while len(self._data) > self._max_items:
+            self._data.popitem(last=False)
+        self._filename.parent.mkdir(parents=True, exist_ok=True)
+        self._filename.write_bytes(pickle.dumps(self._data, pickle.HIGHEST_PROTOCOL))
 
 
 def _now() -> datetime:
