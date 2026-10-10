@@ -473,7 +473,7 @@ def _get_json(url: str, api_key: str) -> Any:
 T = TypeVar("T")
 
 
-def _unique(iterable: Iterable[T]) -> Iterator[T]:
+def _unique[T](iterable: Iterable[T]) -> Iterator[T]:
     seen = set()
     for e in iterable:
         if e in seen:
