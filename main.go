@@ -20,6 +20,8 @@ import (
 	"time"
 )
 
+const version = "0.0.0"
+
 const (
 	dateLayout      = "2006-01-02"
 	timestampLayout = "2006-01-02T15:04:05-07:00"
@@ -40,7 +42,13 @@ func main() {
 	flag.StringVar(&opts.cacheFile, "cache-file", os.Getenv("CACHE_FILE"), "cache path (default $CACHE_FILE)")
 	flag.BoolVar(&opts.verbose, "verbose", false, "enable debug logging")
 	flag.BoolVar(&opts.verbose, "v", false, "shorthand for --verbose")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	if opts.apiKey == "" && opts.apiURL == "" {
 		fmt.Fprintln(os.Stderr, "TMDB_API_URL or TMDB_API_KEY must be set")
