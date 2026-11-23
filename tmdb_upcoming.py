@@ -496,12 +496,8 @@ class _Cache:
         self._filename = filename
         self._max_items = max_items
         self._data = OrderedDict()
-        if filename is None:
-            return
-        if filename.exists():
+        if filename and filename.exists():
             self._data.update(json.loads(filename.read_text()))
-        elif (legacy := filename.with_suffix(".pickle")).exists():
-            self._data.update(_load_legacy_pickle_cache(legacy))
 
     def get_or_load(self, key: str, load_value: Callable[[], str]) -> str:
         if key in self._data:
@@ -517,17 +513,6 @@ class _Cache:
             self._data.popitem(last=False)
         self._filename.parent.mkdir(parents=True, exist_ok=True)
         self._filename.write_text(json.dumps(list(self._data.items())))
-
-
-def _load_legacy_pickle_cache(path: Path) -> Iterator[tuple[str, str]]:
-    import pickle
-
-    logger.info("Migrating legacy pickle cache %s", path)
-    data: OrderedDict[str, Any] = pickle.loads(path.read_bytes())
-    for key, value in data.items():
-        if isinstance(value, datetime):
-            value = value.isoformat()
-        yield key, value
 
 
 def _now() -> datetime:
