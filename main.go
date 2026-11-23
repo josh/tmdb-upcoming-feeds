@@ -199,7 +199,7 @@ func writeFeed(path string, f feed) error {
 		_, err := os.Stdout.Write(out)
 		return err
 	}
-	return os.WriteFile(path, out, 0o644)
+	return writeFileAtomic(path, out)
 }
 
 type mediaRef struct {

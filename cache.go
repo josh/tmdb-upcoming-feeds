@@ -84,8 +84,32 @@ func (c *cache) close() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(c.path), 0o755); err != nil {
+	return writeFileAtomic(c.path, data)
+}
+
+// writeFileAtomic writes data to a temporary file beside path and renames it
+// into place, so readers never see a partial file. Missing parent
+// directories are created.
+func writeFileAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(c.path, data, 0o644)
+	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name()) // no-op once renamed
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Chmod(0o644); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }

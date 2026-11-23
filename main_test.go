@@ -207,7 +207,7 @@ func TestRun(t *testing.T) {
 	opts := options{
 		peopleFile:    filepath.Join(dir, "people.csv"),
 		companiesFile: filepath.Join(dir, "companies.csv"),
-		outputFile:    filepath.Join(dir, "out.json"),
+		outputFile:    filepath.Join(dir, "public", "out.json"),
 		cacheFile:     filepath.Join(dir, "cache.json"),
 		apiKey:        "secret",
 		apiURL:        srv.URL + "/proxy/",
@@ -320,5 +320,36 @@ func TestTMDBClientAuth(t *testing.T) {
 
 	if c := newTMDBClient("", "k"); c.baseURL != "https://api.themoviedb.org/3" {
 		t.Errorf("default baseURL = %q", c.baseURL)
+	}
+}
+
+func TestWriteFileAtomic(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "new", "feed.json")
+	for _, content := range []string{"first", "second"} {
+		if err := writeFileAtomic(path, []byte(content)); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != content {
+			t.Errorf("content = %q, want %q", got, content)
+		}
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o644 {
+		t.Errorf("mode = %v, want 0644", info.Mode().Perm())
+	}
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("leftover temp files: %v", entries)
 	}
 }
