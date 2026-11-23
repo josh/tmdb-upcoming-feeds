@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-import pickle
 import re
 import urllib.request
 from collections import OrderedDict
@@ -98,8 +97,8 @@ def main(
         # Generate a unique key for any major changes to the item
         item_key = f"{imdb_id}:{title}:{status}:{release_estimate}"
         item_id: str = cache.get_or_load(f"item_id:{item_key}", lambda: str(uuid4()))
-        content_updated: datetime = cache.get_or_load(
-            f"content_updated:{item_key}", _now
+        content_updated: str = cache.get_or_load(
+            f"content_updated:{item_key}", lambda: _now().isoformat()
         )
 
         item: Item = {
@@ -107,7 +106,7 @@ def main(
             "url": imdb_url,
             "title": title,
             "content_text": content_text,
-            "date_published": content_updated.isoformat(),
+            "date_published": content_updated,
         }
         feed["items"].append(item)
 
@@ -483,27 +482,31 @@ def _unique[T](iterable: Iterable[T]) -> Iterator[T]:
 
 
 class _Cache:
-    """Memoized values, persisted as a pickle when given a filename.
+    """Memoized string values, persisted as JSON when given a filename.
 
+    The file is an array of [key, value] pairs, least recently used first.
     Oldest entries are evicted on close until at most max_items remain.
     """
 
     _filename: Path | None
     _max_items: int
-    _data: OrderedDict[str, Any]
+    _data: OrderedDict[str, str]
 
     def __init__(self, filename: Path | None, max_items: int) -> None:
         self._filename = filename
         self._max_items = max_items
         self._data = OrderedDict()
-        if filename and filename.exists():
-            self._data.update(pickle.loads(filename.read_bytes()))
+        if filename is None:
+            return
+        if filename.exists():
+            self._data.update(json.loads(filename.read_text()))
+        elif (legacy := filename.with_suffix(".pickle")).exists():
+            self._data.update(_load_legacy_pickle_cache(legacy))
 
-    def get_or_load(self, key: str, load_value: Callable[[], T]) -> T:
+    def get_or_load(self, key: str, load_value: Callable[[], str]) -> str:
         if key in self._data:
             self._data.move_to_end(key)
-            cached: T = self._data[key]
-            return cached
+            return self._data[key]
         self._data[key] = value = load_value()
         return value
 
@@ -513,7 +516,18 @@ class _Cache:
         while len(self._data) > self._max_items:
             self._data.popitem(last=False)
         self._filename.parent.mkdir(parents=True, exist_ok=True)
-        self._filename.write_bytes(pickle.dumps(self._data, pickle.HIGHEST_PROTOCOL))
+        self._filename.write_text(json.dumps(list(self._data.items())))
+
+
+def _load_legacy_pickle_cache(path: Path) -> Iterator[tuple[str, str]]:
+    import pickle
+
+    logger.info("Migrating legacy pickle cache %s", path)
+    data: OrderedDict[str, Any] = pickle.loads(path.read_bytes())
+    for key, value in data.items():
+        if isinstance(value, datetime):
+            value = value.isoformat()
+        yield key, value
 
 
 def _now() -> datetime:

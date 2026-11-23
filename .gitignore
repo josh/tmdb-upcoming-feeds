@@ -4,4 +4,5 @@
 /.venv/
 /*.egg-info/
 /public/
+cache.json
 cache.pickle

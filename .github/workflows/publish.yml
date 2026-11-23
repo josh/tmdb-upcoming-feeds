@@ -25,19 +25,27 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Load cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Load legacy pickle cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: cache.pickle
           key: cache-${{ github.run_id }}
           restore-keys: |
             cache-
 
+      - name: Load cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cache.json
+          key: cache-json-${{ github.run_id }}
+          restore-keys: |
+            cache-json-
+
       - name: Generate feeds
         run: |
           mkdir -p public/
           uv run tmdb-upcoming \
-            --cache-file cache.pickle \
+            --cache-file cache.json \
             --companies-file companies.csv \
             --people-file people.csv \
             --output-file public/upcoming.json
