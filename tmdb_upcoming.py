@@ -115,7 +115,7 @@ def main(
 
     cache.close()
 
-    json.dump(feed, output_file, indent=4)
+    json.dump(feed, output_file, indent=4, ensure_ascii=False)
 
 
 class Feed(TypedDict):
