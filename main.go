@@ -36,13 +36,14 @@ func main() {
 	flag.StringVar(&opts.companiesFile, "companies-file", "", "file of TMDB company IDs")
 	flag.StringVar(&opts.outputFile, "output-file", "-", "feed output path, or - for stdout")
 	flag.StringVar(&opts.apiKey, "api-key", os.Getenv("TMDB_API_KEY"), "TMDB API key (default $TMDB_API_KEY)")
+	flag.StringVar(&opts.apiURL, "api-url", os.Getenv("TMDB_API_URL"), "TMDB API base URL, e.g. an authenticating proxy (default $TMDB_API_URL or "+defaultAPIURL+")")
 	flag.StringVar(&opts.cacheFile, "cache-file", os.Getenv("CACHE_FILE"), "cache path (default $CACHE_FILE)")
 	flag.BoolVar(&opts.verbose, "verbose", false, "enable debug logging")
 	flag.BoolVar(&opts.verbose, "v", false, "shorthand for --verbose")
 	flag.Parse()
 
-	if opts.apiKey == "" {
-		fmt.Fprintln(os.Stderr, "missing --api-key or $TMDB_API_KEY")
+	if opts.apiKey == "" && opts.apiURL == "" {
+		fmt.Fprintln(os.Stderr, "TMDB_API_URL or TMDB_API_KEY must be set")
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -64,6 +65,7 @@ type options struct {
 	companiesFile string
 	outputFile    string
 	apiKey        string
+	apiURL        string
 	cacheFile     string
 	verbose       bool
 }
@@ -96,7 +98,7 @@ func run(opts options) error {
 	if err != nil {
 		return err
 	}
-	client := &tmdbClient{apiKey: opts.apiKey}
+	client := newTMDBClient(opts.apiURL, opts.apiKey)
 
 	f := feed{
 		Version: "https://jsonfeed.org/version/1.1",

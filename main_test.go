@@ -176,8 +176,12 @@ func TestRun(t *testing.T) {
 		if r.URL.Query().Get("api_key") != "secret" {
 			t.Errorf("missing api_key on %s", r.URL)
 		}
-		key := r.URL.Path
-		if r.URL.Path == "/discover/movie" {
+		key, ok := strings.CutPrefix(r.URL.Path, "/proxy/3/")
+		if !ok {
+			t.Errorf("request outside the API base: %s", r.URL)
+		}
+		key = "/" + key
+		if key == "/discover/movie" {
 			if r.URL.Query().Get("with_companies") != "9" || r.URL.Query().Get("release_date.gte") != todayUTC().Format(dateLayout) {
 				t.Errorf("unexpected discover query %s", r.URL.RawQuery)
 			}
@@ -193,10 +197,9 @@ func TestRun(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	oldBase, oldNow := apiBase, now
-	apiBase = srv.URL
+	oldNow := now
 	now = func() time.Time { return time.Date(2026, 11, 23, 13, 0, 0, 500, time.FixedZone("PST", -8*3600)) }
-	defer func() { apiBase, now = oldBase, oldNow }()
+	defer func() { now = oldNow }()
 
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "people.csv"), "1-pat-person\n2-broken\n")
@@ -207,6 +210,7 @@ func TestRun(t *testing.T) {
 		outputFile:    filepath.Join(dir, "out.json"),
 		cacheFile:     filepath.Join(dir, "cache.json"),
 		apiKey:        "secret",
+		apiURL:        srv.URL + "/proxy/",
 	}
 	if err := run(opts); err != nil {
 		t.Fatal(err)
@@ -288,5 +292,33 @@ func writeFile(t *testing.T, path, s string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(s), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTMDBClientAuth(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.URL.RequestURI())
+		w.Write([]byte(`{"id": 1}`))
+	}))
+	defer srv.Close()
+
+	// A proxy that adds credentials itself needs no api_key.
+	if _, err := newTMDBClient(srv.URL, "").media("movie", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newTMDBClient(srv.URL+"/", "secret").media("tv", 2); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"/3/movie/1?append_to_response=credits,external_ids",
+		"/3/tv/2?append_to_response=credits,external_ids&api_key=secret",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("requests = %q, want %q", got, want)
+	}
+
+	if c := newTMDBClient("", "k"); c.baseURL != "https://api.themoviedb.org/3" {
+		t.Errorf("default baseURL = %q", c.baseURL)
 	}
 }

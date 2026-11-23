@@ -9,13 +9,23 @@ import (
 	"time"
 )
 
-// apiBase is replaced in tests.
-var apiBase = "https://api.themoviedb.org/3"
+const defaultAPIURL = "https://api.themoviedb.org"
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
+// tmdbClient talks to the TMDB v3 API at baseURL, a host root such as
+// defaultAPIURL or an authenticating proxy for one. apiKey is optional when
+// the proxy adds credentials itself.
 type tmdbClient struct {
-	apiKey string
+	baseURL string
+	apiKey  string
+}
+
+func newTMDBClient(baseURL, apiKey string) *tmdbClient {
+	if baseURL == "" {
+		baseURL = defaultAPIURL
+	}
+	return &tmdbClient{baseURL: strings.TrimRight(baseURL, "/") + "/3", apiKey: apiKey}
 }
 
 type personCredit struct {
@@ -75,7 +85,7 @@ func (c *tmdbClient) personCredits(personID int) []personCredit {
 		Cast []personCredit `json:"cast"`
 		Crew []personCredit `json:"crew"`
 	}
-	if err := c.getJSON(fmt.Sprintf("%s/person/%d/combined_credits", apiBase, personID), &resp); err != nil {
+	if err := c.getJSON(fmt.Sprintf("%s/person/%d/combined_credits", c.baseURL, personID), &resp); err != nil {
 		slog.Error(fmt.Sprintf("Error fetching person '%d' credits: %v", personID, err))
 		return nil
 	}
@@ -95,7 +105,7 @@ func (c *tmdbClient) personCredits(personID int) []personCredit {
 // failure is logged and returns the pages fetched so far.
 func (c *tmdbClient) discoverCompanyMovies(companyID int, today time.Time) []discoverResult {
 	url := fmt.Sprintf("%s/discover/movie?&release_date.gte=%s&sort_by=primary_release_date.asc&with_companies=%d",
-		apiBase, today.Format(dateLayout), companyID)
+		c.baseURL, today.Format(dateLayout), companyID)
 	var results []discoverResult
 	for page := 1; ; page++ {
 		var resp struct {
@@ -116,7 +126,7 @@ func (c *tmdbClient) discoverCompanyMovies(companyID int, today time.Time) []dis
 
 func (c *tmdbClient) media(mediaType string, id int) (*media, error) {
 	var m media
-	url := fmt.Sprintf("%s/%s/%d?append_to_response=credits,external_ids", apiBase, mediaType, id)
+	url := fmt.Sprintf("%s/%s/%d?append_to_response=credits,external_ids", c.baseURL, mediaType, id)
 	if err := c.getJSON(url, &m); err != nil {
 		return nil, err
 	}
@@ -126,11 +136,14 @@ func (c *tmdbClient) media(mediaType string, id int) (*media, error) {
 
 func (c *tmdbClient) getJSON(url string, v any) error {
 	slog.Info("Fetch " + url)
-	sep := "?"
-	if strings.Contains(url, "?") {
-		sep = "&"
+	if c.apiKey != "" {
+		sep := "?"
+		if strings.Contains(url, "?") {
+			sep = "&"
+		}
+		url += sep + "api_key=" + c.apiKey
 	}
-	req, err := http.NewRequest(http.MethodGet, url+sep+"api_key="+c.apiKey, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
