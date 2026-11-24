@@ -115,12 +115,18 @@ func run(opts options) error {
 		Items:   []item{},
 	}
 
-	for _, ref := range discoverCredits(client, peopleIDs, companyIDs) {
+	refs, err := discoverCredits(client, peopleIDs, companyIDs)
+	if err != nil {
+		return err
+	}
+	for _, ref := range refs {
 		m, err := client.media(ref.mediaType, ref.id)
-		if err != nil {
-			slog.Error(fmt.Sprintf("Error fetching media object: %v", err))
-			slog.Error(fmt.Sprintf("Skip '%s/%d' request error", ref.mediaType, ref.id))
+		if isNotFound(err) {
+			// Deleted from TMDB since the credit was listed.
+			slog.Warn(fmt.Sprintf("Skip '%s/%d' not found", ref.mediaType, ref.id))
 			continue
+		} else if err != nil {
+			return err
 		}
 		if it, ok := buildItem(m, peopleIDs, c); ok {
 			f.Items = append(f.Items, it)
@@ -209,7 +215,7 @@ type mediaRef struct {
 
 var relevantDepartments = map[string]bool{"Directing": true, "Writing": true}
 
-func discoverCredits(client *tmdbClient, peopleIDs, companyIDs map[int]bool) []mediaRef {
+func discoverCredits(client *tmdbClient, peopleIDs, companyIDs map[int]bool) ([]mediaRef, error) {
 	today := todayUTC()
 	var refs []mediaRef
 	seen := map[mediaRef]bool{}
@@ -221,7 +227,11 @@ func discoverCredits(client *tmdbClient, peopleIDs, companyIDs map[int]bool) []m
 	}
 
 	for _, personID := range sortedIDs(peopleIDs) {
-		for _, credit := range client.personCredits(personID) {
+		credits, err := client.personCredits(personID)
+		if err != nil {
+			return nil, err
+		}
+		for _, credit := range credits {
 			if keepCredit(credit, today) {
 				add(mediaRef{credit.MediaType, credit.ID})
 			}
@@ -229,7 +239,11 @@ func discoverCredits(client *tmdbClient, peopleIDs, companyIDs map[int]bool) []m
 	}
 
 	for _, companyID := range sortedIDs(companyIDs) {
-		for _, movie := range client.discoverCompanyMovies(companyID, today) {
+		movies, err := client.discoverCompanyMovies(companyID, today)
+		if err != nil {
+			return nil, err
+		}
+		for _, movie := range movies {
 			if d, ok := parseDate(movie.ReleaseDate); ok && !d.After(today) {
 				slog.Debug(fmt.Sprintf("Skip already released: %d", movie.ID))
 				continue
@@ -238,7 +252,7 @@ func discoverCredits(client *tmdbClient, peopleIDs, companyIDs map[int]bool) []m
 		}
 	}
 
-	return refs
+	return refs, nil
 }
 
 func keepCredit(c personCredit, today time.Time) bool {

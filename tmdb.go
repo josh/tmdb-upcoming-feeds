@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	neturl "net/url"
 	"strings"
 	"time"
 )
@@ -78,16 +80,13 @@ type discoverResult struct {
 	ReleaseDate string `json:"release_date"`
 }
 
-// personCredits returns a person's cast and crew credits. Any fetch failure
-// is logged and skips this person rather than aborting the whole run.
-func (c *tmdbClient) personCredits(personID int) []personCredit {
+func (c *tmdbClient) personCredits(personID int) ([]personCredit, error) {
 	var resp struct {
 		Cast []personCredit `json:"cast"`
 		Crew []personCredit `json:"crew"`
 	}
 	if err := c.getJSON(fmt.Sprintf("%s/person/%d/combined_credits", c.baseURL, personID), &resp); err != nil {
-		slog.Error(fmt.Sprintf("Error fetching person '%d' credits: %v", personID, err))
-		return nil
+		return nil, fmt.Errorf("person %d credits: %w", personID, err)
 	}
 	credits := make([]personCredit, 0, len(resp.Cast)+len(resp.Crew))
 	for _, credit := range resp.Cast {
@@ -98,12 +97,10 @@ func (c *tmdbClient) personCredits(personID int) []personCredit {
 		credit.CreditType = "crew"
 		credits = append(credits, credit)
 	}
-	return credits
+	return credits, nil
 }
 
-// discoverCompanyMovies returns upcoming movies from a company. A fetch
-// failure is logged and returns the pages fetched so far.
-func (c *tmdbClient) discoverCompanyMovies(companyID int, today time.Time) []discoverResult {
+func (c *tmdbClient) discoverCompanyMovies(companyID int, today time.Time) ([]discoverResult, error) {
 	url := fmt.Sprintf("%s/discover/movie?&release_date.gte=%s&sort_by=primary_release_date.asc&with_companies=%d",
 		c.baseURL, today.Format(dateLayout), companyID)
 	var results []discoverResult
@@ -114,12 +111,11 @@ func (c *tmdbClient) discoverCompanyMovies(companyID int, today time.Time) []dis
 			TotalPages int              `json:"total_pages"`
 		}
 		if err := c.getJSON(fmt.Sprintf("%s&page=%d", url, page), &resp); err != nil {
-			slog.Error(fmt.Sprintf("Error discovering company '%d' media: %v", companyID, err))
-			return results
+			return nil, fmt.Errorf("company %d movies: %w", companyID, err)
 		}
 		results = append(results, resp.Results...)
 		if resp.Page >= resp.TotalPages {
-			return results
+			return results, nil
 		}
 	}
 }
@@ -128,33 +124,56 @@ func (c *tmdbClient) media(mediaType string, id int) (*media, error) {
 	var m media
 	url := fmt.Sprintf("%s/%s/%d?append_to_response=credits,external_ids", c.baseURL, mediaType, id)
 	if err := c.getJSON(url, &m); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s %d: %w", mediaType, id, err)
 	}
 	m.MediaType = mediaType
 	return &m, nil
 }
 
+type httpStatusError struct {
+	code int
+}
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("HTTP Error %d: %s", e.code, http.StatusText(e.code))
+}
+
+func isNotFound(err error) bool {
+	var se *httpStatusError
+	return errors.As(err, &se) && se.code == http.StatusNotFound
+}
+
+// getJSON fetches url and decodes the JSON response into v. Errors name url
+// without the api_key, so they are safe to log.
 func (c *tmdbClient) getJSON(url string, v any) error {
 	slog.Info("Fetch " + url)
+	reqURL := url
 	if c.apiKey != "" {
 		sep := "?"
 		if strings.Contains(url, "?") {
 			sep = "&"
 		}
-		url += sep + "api_key=" + c.apiKey
+		reqURL += sep + "api_key=" + c.apiKey
 	}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("GET %s: invalid request", url)
 	}
 	req.Header.Set("Accept", "application/json")
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return err
+		var ue *neturl.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
+		return fmt.Errorf("GET %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("HTTP Error %d: %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+		return fmt.Errorf("GET %s: %w", url, &httpStatusError{resp.StatusCode})
 	}
-	return json.NewDecoder(resp.Body).Decode(v)
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return fmt.Errorf("GET %s: decode: %w", url, err)
+	}
+	return nil
 }

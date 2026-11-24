@@ -152,13 +152,13 @@ var fixtures = map[string]string{
 		],
 		"crew": [
 			{"media_type": "movie", "id": 104, "release_date": "", "department": "Sound"},
+			{"media_type": "movie", "id": 107, "release_date": "", "department": "Writing"},
 			{"media_type": "movie", "id": 100, "release_date": "2027-05-01", "department": "Directing"},
 			{"media_type": "tv", "id": 202, "first_air_date": "2027-02-01", "department": "Writing"}
 		]
 	}`,
-	"/person/2/combined_credits": `not json`,
-	"/discover/movie?page=1":     `{"page": 1, "total_pages": 2, "results": [{"id": 105, "release_date": "2027-03-01"}, {"id": 102, "release_date": "2026-11-01"}]}`,
-	"/discover/movie?page=2":     `{"page": 2, "total_pages": 2, "results": [{"id": 106, "release_date": ""}]}`,
+	"/discover/movie?page=1": `{"page": 1, "total_pages": 2, "results": [{"id": 105, "release_date": "2027-03-01"}, {"id": 102, "release_date": "2026-11-01"}]}`,
+	"/discover/movie?page=2": `{"page": 2, "total_pages": 2, "results": [{"id": 106, "release_date": ""}]}`,
 	"/movie/100": `{"id": 100, "title": "Big Movie", "status": "In Production", "release_date": "2027-05-01",
 		"external_ids": {"imdb_id": "tt100"},
 		"credits": {"cast": [{"id": 1, "name": "Pat Person"}], "crew": [{"id": 1, "name": "Pat Person", "job": "Director"}]}}`,
@@ -202,7 +202,7 @@ func TestRun(t *testing.T) {
 	defer func() { now = oldNow }()
 
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "people.csv"), "1-pat-person\n2-broken\n")
+	writeFile(t, filepath.Join(dir, "people.csv"), "1-pat-person\n")
 	writeFile(t, filepath.Join(dir, "companies.csv"), "9-studio\n")
 	opts := options{
 		peopleFile:    filepath.Join(dir, "people.csv"),
@@ -351,5 +351,78 @@ func TestWriteFileAtomic(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Errorf("leftover temp files: %v", entries)
+	}
+}
+
+func TestRunFailsOnFetchErrors(t *testing.T) {
+	ok := func(w http.ResponseWriter, body string) { w.Write([]byte(body)) }
+	credits := `{"cast": [{"media_type": "movie", "id": 100, "release_date": "", "character": "Hero"}], "crew": []}`
+	tests := []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{"wrong base URL", func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) }},
+		{"proxy refuses", func(w http.ResponseWriter, r *http.Request) { http.Error(w, "denied", http.StatusForbidden) }},
+		{"person credits not JSON", func(w http.ResponseWriter, r *http.Request) { ok(w, "<html>") }},
+		{"company discover fails", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/3/person/") {
+				ok(w, credits)
+				return
+			}
+			http.Error(w, "oops", http.StatusBadGateway)
+		}},
+		{"media server error", func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case strings.HasPrefix(r.URL.Path, "/3/person/"):
+				ok(w, credits)
+			case r.URL.Path == "/3/discover/movie":
+				ok(w, `{"page": 1, "total_pages": 1, "results": []}`)
+			default:
+				http.Error(w, "oops", http.StatusInternalServerError)
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(tt.handler)
+			defer srv.Close()
+			opts := failingRunOptions(t, srv.URL)
+			if err := run(opts); err == nil {
+				t.Fatal("run succeeded")
+			}
+			for _, path := range []string{opts.outputFile, opts.cacheFile} {
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Errorf("%s was written", filepath.Base(path))
+				}
+			}
+		})
+	}
+
+	t.Run("unreachable host keeps the API key out of the error", func(t *testing.T) {
+		srv := httptest.NewServer(http.NotFoundHandler())
+		srv.Close()
+		opts := failingRunOptions(t, srv.URL)
+		err := run(opts)
+		if err == nil {
+			t.Fatal("run succeeded")
+		}
+		if strings.Contains(err.Error(), "secret") {
+			t.Errorf("error leaks api_key: %v", err)
+		}
+	})
+}
+
+func failingRunOptions(t *testing.T, apiURL string) options {
+	t.Helper()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "people.csv"), "1-pat-person\n")
+	writeFile(t, filepath.Join(dir, "companies.csv"), "9-studio\n")
+	return options{
+		peopleFile:    filepath.Join(dir, "people.csv"),
+		companiesFile: filepath.Join(dir, "companies.csv"),
+		outputFile:    filepath.Join(dir, "public", "out.json"),
+		cacheFile:     filepath.Join(dir, "cache.json"),
+		apiKey:        "secret",
+		apiURL:        apiURL,
 	}
 }
