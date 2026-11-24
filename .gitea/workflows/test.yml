@@ -1,10 +1,16 @@
 name: Test
 
-on: [push]
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-amd64
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -19,4 +25,4 @@ jobs:
       - name: Test
         run: go run . --people-file test_people.csv
         env:
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          TMDB_API_URL: ${{ vars.TMDB_API_URL }}
